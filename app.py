@@ -11,7 +11,7 @@ from storage import Storage
 from translator import (
     TranslationError,
     chunk_text,
-    get_openai_client,
+    get_groq_client,
     translate_chunks,
     translate_text,
 )
@@ -69,8 +69,8 @@ def main() -> None:
                 if not original_text.strip():
                     st.warning("No extractable text was found in this file.")
                 else:
-                    with st.spinner("Translating content with OpenAI..."):
-                        client = get_openai_client()
+                    with st.spinner("Translating content with Groq..."):
+                        client = get_groq_client()
                         chunks = chunk_text(original_text, max_chars=6000)
                         translated_text = translate_chunks(chunks, target_language, client=client)
 
@@ -124,7 +124,7 @@ def main() -> None:
             else:
                 try:
                     with st.spinner("Translating comment..."):
-                        client = get_openai_client()
+                        client = get_groq_client()
                         translated_comment = translate_text(
                             comment_text, comment_language, client=client
                         )

@@ -3,7 +3,7 @@
 A Python + Streamlit demo app that:
 - Uploads PDF/DOCX/TXT files
 - Extracts text
-- Translates content with OpenAI Responses API
+- Translates content with Groq API
 - Shows original + translated text side-by-side
 - Accepts comments and stores translated versions
 - Persists data in `session_data.json`
@@ -17,10 +17,16 @@ A Python + Streamlit demo app that:
 pip install -r requirements.txt
 ```
 
-3. Set OpenAI API key:
+3. Set Groq API key:
 
 ```bash
-export OPENAI_API_KEY="your_api_key_here"
+export GROQ_API_KEY="your_api_key_here"
+```
+
+Optional model override:
+
+```bash
+export GROQ_MODEL="llama-3.3-70b-versatile"
 ```
 
 4. Run app:
@@ -33,5 +39,5 @@ streamlit run app.py
 
 - `app.py` – Streamlit UI and flow orchestration
 - `parser.py` – File extraction logic (PDF/DOCX/TXT)
-- `translator.py` – OpenAI translation integration and chunking
+- `translator.py` – Groq translation integration and chunking
 - `storage.py` – Local JSON-backed storage (`session_data.json`)
