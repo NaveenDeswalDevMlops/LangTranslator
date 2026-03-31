@@ -32,12 +32,43 @@ class Storage:
 
     def upsert_file(self, file_id: str, original_text: str, translated_text: str) -> None:
         existing = self.data.get(file_id, {})
-        comments = existing.get("comments", [])
         self.data[file_id] = {
             "original_text": original_text,
             "translated_text": translated_text,
-            "comments": comments,
+            "comments": existing.get("comments", []),
+            "feedback": existing.get("feedback", []),
+            "assigned_team": existing.get("assigned_team", "IT"),
+            "criticality": existing.get("criticality", "Medium"),
         }
+        self.save()
+
+    def update_assignment(self, file_id: str, assigned_team: str, criticality: str) -> None:
+        if file_id not in self.data:
+            self.data[file_id] = {
+                "original_text": "",
+                "translated_text": "",
+                "comments": [],
+                "feedback": [],
+            }
+        self.data[file_id]["assigned_team"] = assigned_team
+        self.data[file_id]["criticality"] = criticality
+        self.save()
+
+    def add_feedback(self, file_id: str, feedback_text: str, area: str, rating: int) -> None:
+        if file_id not in self.data:
+            self.data[file_id] = {
+                "original_text": "",
+                "translated_text": "",
+                "comments": [],
+                "feedback": [],
+            }
+        self.data[file_id].setdefault("feedback", []).append(
+            {
+                "area": area,
+                "feedback_text": feedback_text,
+                "rating": rating,
+            }
+        )
         self.save()
 
     def add_comment(
@@ -52,6 +83,7 @@ class Storage:
                 "original_text": "",
                 "translated_text": "",
                 "comments": [],
+                "feedback": [],
             }
 
         self.data[file_id].setdefault("comments", []).append(
