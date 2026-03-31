@@ -8,6 +8,8 @@ from __future__ import annotations
 import base64
 import difflib
 import hashlib
+import re
+from collections import Counter
 
 import streamlit as st
 from fpdf import FPDF
@@ -121,6 +123,95 @@ def render_diff(original_text: str, translated_text: str) -> None:
         numlines=2,
     )
     st.components.v1.html(html_diff, height=400, scrolling=True)
+
+
+def summarize_text(text: str, max_sentences: int = 5) -> str:
+    """Create a lightweight extractive summary from plain text."""
+    cleaned_text = " ".join(text.split())
+    if not cleaned_text:
+        return ""
+
+    sentences = re.split(r"(?<=[.!?])\s+", cleaned_text)
+    sentences = [sentence.strip() for sentence in sentences if sentence.strip()]
+    if len(sentences) <= max_sentences:
+        return " ".join(sentences)
+
+    stop_words = {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "has",
+        "he",
+        "in",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "that",
+        "the",
+        "to",
+        "was",
+        "were",
+        "will",
+        "with",
+    }
+    words = re.findall(r"[a-zA-Z]{3,}", cleaned_text.lower())
+    frequencies = Counter(word for word in words if word not in stop_words)
+    if not frequencies:
+        return " ".join(sentences[:max_sentences])
+
+    ranked = sorted(
+        enumerate(sentences),
+        key=lambda item: sum(
+            frequencies.get(token, 0) for token in re.findall(r"[a-zA-Z]{3,}", item[1].lower())
+        ),
+        reverse=True,
+    )[:max_sentences]
+
+    selected_indices = sorted(index for index, _ in ranked)
+    return " ".join(sentences[index] for index in selected_indices)
+
+
+def recommend_impacted_teams(original_text: str, translated_text: str) -> list[str]:
+    """Recommend impacted teams using keyword signals from changed content."""
+    diff_tokens = set(
+        re.findall(
+            r"[a-zA-Z]{3,}",
+            "\n".join(
+                difflib.unified_diff(
+                    original_text.lower().splitlines(),
+                    translated_text.lower().splitlines(),
+                    lineterm="",
+                )
+            ),
+        )
+    )
+    if not diff_tokens:
+        diff_tokens = set(re.findall(r"[a-zA-Z]{3,}", translated_text.lower()))
+
+    team_keywords = {
+        "IT": {"system", "software", "application", "infrastructure", "technology", "server"},
+        "Finance": {"budget", "cost", "invoice", "payment", "revenue", "tax", "financial"},
+        "Operations": {"process", "timeline", "logistics", "delivery", "workflow", "capacity"},
+        "Legal": {"compliance", "contract", "policy", "regulation", "clause", "liability"},
+        "HR": {"employee", "hiring", "training", "benefit", "leave", "workforce"},
+        "Security": {"risk", "security", "breach", "access", "vulnerability", "incident"},
+    }
+
+    matched_teams: list[str] = []
+    for team, keywords in team_keywords.items():
+        if diff_tokens.intersection(keywords):
+            matched_teams.append(team)
+
+    return matched_teams or ["Operations"]
 
 
 # ----------------------------
@@ -277,7 +368,7 @@ def process_uploaded_file(storage: Storage, uploaded_file, target_language: str)
 
 
 def render_upload_translate_page(storage: Storage) -> None:
-    tabs = st.tabs(["Upload", "Translation Output", "Comments"])
+    tabs = st.tabs(["Upload", "Translation Output", "Summary & Impact", "Comments"])
 
     with tabs[0]:
         card_open("Upload and Translate")
@@ -339,6 +430,50 @@ def render_upload_translate_page(storage: Storage) -> None:
             card_close()
 
     with tabs[2]:
+        card_open("Summarised Converted Document & Impacted Teams")
+        if not record:
+            st.info("Process a file to view a summarised version and team impact recommendation.")
+            card_close()
+        else:
+            translated_text = record.get("translated_text", "")
+            summary = summarize_text(translated_text, max_sentences=5)
+            impacted_teams = recommend_impacted_teams(
+                record.get("original_text", ""),
+                translated_text,
+            )
+
+            st.markdown("##### Summarised Version")
+            st.text_area(
+                "Converted document summary",
+                value=summary or "No summary available.",
+                height=180,
+                disabled=True,
+            )
+            st.download_button(
+                "Download summary (.txt)",
+                data=summary or "",
+                file_name="translated_summary.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+
+            st.markdown("##### Recommended Impacted Team(s)")
+            st.write(", ".join(impacted_teams))
+            st.caption(
+                "Recommendation is generated from keywords found in the detected changes "
+                "between original and converted content."
+            )
+            if st.button("Apply recommendation to assignment", key="apply_recommendation"):
+                storage.update_assignment(
+                    current_file_id,
+                    impacted_teams[0],
+                    record.get("criticality", "Medium"),
+                )
+                st.success(f"Assigned to {impacted_teams[0]} based on recommendation.")
+                st.rerun()
+            card_close()
+
+    with tabs[3]:
         render_review_comments_page(storage, compact=True)
 
 
