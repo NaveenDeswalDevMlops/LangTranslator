@@ -56,17 +56,35 @@ def render_pdf_view(pdf_bytes: bytes, title: str) -> None:
 
 
 def text_to_pdf_bytes(text: str) -> bytes:
+    def _split_line_to_fit(pdf_doc: FPDF, raw_line: str, max_width: float) -> list[str]:
+        """Split a line into chunks that fit the target width."""
+        if not raw_line:
+            return [""]
+
+        parts: list[str] = []
+        start = 0
+        while start < len(raw_line):
+            end = start + 1
+            while end <= len(raw_line) and pdf_doc.get_string_width(raw_line[start:end]) <= max_width:
+                end += 1
+            parts.append(raw_line[start : end - 1])
+            start = end - 1
+        return parts
+
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Arial", size=10)
 
+    available_width = max(pdf.epw, 1)
     safe_text = text.encode("latin-1", "replace").decode("latin-1")
     for line in safe_text.splitlines() or [safe_text]:
         pdf.multi_cell(0, 5, line)
-
-    return pdf.output(dest="S").encode("latin-1")
-
+        wrapped_lines = _split_line_to_fit(pdf, line, available_width)
+        for wrapped_line in wrapped_lines:
+            pdf.set_x(pdf.l_margin)
+            pdf.cell(available_width, 5, wrapped_line, new_x="LMARGIN", new_y="NEXT")
+    return bytes(pdf.output(dest="S"))
 
 def render_diff(original_text: str, translated_text: str) -> None:
     st.markdown("### 3) Difference Between Original and Converted Files")
