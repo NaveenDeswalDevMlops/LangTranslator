@@ -6,7 +6,8 @@ import os
 from typing import Iterable
 
 from groq import Groq
-
+from dotenv import load_dotenv
+load_dotenv()
 
 SYSTEM_PROMPT = (
     "You are a professional multilingual translator. "
